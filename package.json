@@ -1,0 +1,23 @@
+{
+  "name": "yttomp3",
+  "version": "1.0.0",
+  "description": "Convert your YT videos to MP3 format with just the YT video link :)",
+  "main": "downloader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "download": "node downloader.js",
+    "start": "node downloader.js"
+  },
+  "keywords": [
+    "Youtube",
+    "Ffmpeg",
+    "MP3",
+    "Convert"
+  ],
+  "author": "Atharv",
+  "license": "MIT",
+  "dependencies": {
+    "fluent-ffmpeg": "^2.1.3",
+    "ytdl-core": "^4.11.5"
+  }
+}
