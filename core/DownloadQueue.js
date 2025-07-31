@@ -2,6 +2,7 @@ import { DEFAULT_OUTPUT_DIR, MAX_CONCURRENT_DOWNLOADS ,MAX_ATTEMPTS } from './Co
 import proxyRotator from ('../core/ProxyRotator.js');
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import { downloadWithYtDlp } from './Downloader.js';
 
 
 export default class DownloadQueue extends EventEmitter {
@@ -54,8 +55,10 @@ export default class DownloadQueue extends EventEmitter {
         console.log(`\n🚀 Starting download: ${item.url}`);
         this.emit('downloadStarted', item);
         
+        const proxy = this.proxyRotator.getCurrentProxy();
+
         try {
-            await this.downloadVideo(item);
+            await downloadWithYtDlp(item, proxy, this.outputDir, this.emit.bind(this, 'progress'));
             this.completed.push(item);
             console.log(`✅ Completed: ${item.title}`);
             this.emit('downloadCompleted', item);
