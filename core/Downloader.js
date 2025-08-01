@@ -1,10 +1,26 @@
-import { YTDLP_ARGS_BASE } from "./Config";
-import isURL from 'validator/lib/isURL';
+import { YTDLP_ARGS_BASE } from "./Config.js";
+import isURL from 'validator/lib/isURL.js';
 import { spawn } from 'child_process';
 import path from 'path';
 
-export function downloadWithYtDlp(item, proxy, outputDir, emitProgress) {
+
+async function fetchTitle(url) {
     return new Promise((resolve, reject) => {
+        const proc = spawn('yt-dlp', ['--print', '%(title)s', url]);
+
+        let title = '';
+        proc.stdout.on('data', data => title += data.toString());
+
+        proc.stderr.on('data', err => {
+            console.error('[yt-dlp error]', err.toString());
+        });
+
+        proc.on('close', () => resolve(title.trim()));
+    });
+}
+
+export function downloadWithYtDlp(item, proxy, outputDir, emitProgress) {
+    return new Promise(async (resolve, reject) => {
         const args = [...YTDLP_ARGS_BASE];
         args.push('--output', path.join(outputDir, '%(title)s.%(ext)s'));
 
@@ -18,6 +34,10 @@ export function downloadWithYtDlp(item, proxy, outputDir, emitProgress) {
         } else {
             console.log('🌐 No proxy - using direct connection');
         }
+        if (item.title === 'Unknown') {
+            item.title =  await fetchTitle(item.url);
+        }
+
 
         args.push(item.url);
 

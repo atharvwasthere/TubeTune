@@ -1,5 +1,5 @@
 import { DEFAULT_OUTPUT_DIR, MAX_CONCURRENT_DOWNLOADS ,MAX_ATTEMPTS } from './Config.js';
-import proxyRotator from ('../core/ProxyRotator.js');
+import proxyRotator from './ProxyRotator.js';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { downloadWithYtDlp } from './Downloader.js';
