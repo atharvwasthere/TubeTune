@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import { basename } from 'path';
 
 import DownloadQueue from '../core/DownloadQueue.js';
-import { printHelp, printSubtitle , printBannerOnly, printVersion } from '../utils/asciiBanner.js';
+import { printHelp, printSubtitle, printBannerOnly, printVersion } from '../utils/asciiBanner.js';
 
 class YouTubeDownloaderCLI {
     constructor() {
@@ -43,14 +43,16 @@ class YouTubeDownloaderCLI {
 
     showStatus() {
         const status = this.downloader.getStatus();
-        console.log('\n📊 Status:');
-        console.log(`   Queue: ${status.queue}`);
-        console.log(`   Processing: ${status.processing}`);
-        console.log(`   Completed: ${status.completed}`);
-        console.log(`   Failed: ${status.failed}`);
-        console.log(`   Proxies: ${status.totalProxies} (${status.failedProxies} failed)`);
-        console.log('─'.repeat(50));
+
+        // console.log('\n=== Download Status ===');
+        // console.log(` Queue      : ${status.queue}`);
+        // console.log(` Processing : ${status.processing}`);
+        // console.log(` Completed  : ${status.completed} ✅`);
+        // console.log(` Failed     : ${status.failed} ❌`);
+        // console.log(` Proxies    : ${status.totalProxies} total | ${status.failedProxies} failed 🌐`);
+        // console.log('========================\n');
     }
+
 
     showHelp() {
         console.log('\n🎵 YouTube MP3 Downloader');
@@ -58,7 +60,7 @@ class YouTubeDownloaderCLI {
 
     }
 
-    showVersion(){
+    showVersion() {
         console.log('   You are currently using\n');
         printVersion();
     }
@@ -72,12 +74,12 @@ if (isMain) {
     const cli = new YouTubeDownloaderCLI();
     const args = process.argv.slice(2);
 
-        // Version cmd
-    if (args.includes('--version')){
-    printSubtitle();
-    cli.showVersion();
+    // Version cmd
+    if (args.includes('--version')) {
+        printSubtitle();
+        cli.showVersion();
 
-    process.exit(0);
+        process.exit(0);
     }
 
     printBannerOnly(); // Show Fastlane-style banner
@@ -113,7 +115,7 @@ if (isMain) {
         console.log('Example: cli.addVideo("https://youtube.com/watch?v=...")');
         // cli.addVideo('https://www.youtube.com/watch?v=CGrFZmOWxVw');
     }
-2
+    2
     setTimeout(() => cli.showStatus(), 2000);
 
     process.on('SIGINT', () => {

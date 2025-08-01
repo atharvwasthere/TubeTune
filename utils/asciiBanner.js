@@ -3,7 +3,6 @@ import figlet from 'figlet';
 import chalk from 'chalk';
 import boxen from 'boxen';
 import gradient from 'gradient-string';
-import { version } from 'react';
 
 export function printSubtitle() {
 

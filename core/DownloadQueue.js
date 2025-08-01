@@ -52,7 +52,7 @@ export default class DownloadQueue extends EventEmitter {
         const item = this.queue.shift(); // popping
         this.processing.set(item.id, item);
 
-        console.log(`\n🚀 Starting download: ${item.url}`);
+        console.log(`\n🚀 Starting download:`);
         this.emit('downloadStarted', item);
         
         const proxy = this.proxyRotator.getCurrentProxy();
@@ -60,7 +60,7 @@ export default class DownloadQueue extends EventEmitter {
         try {
             await downloadWithYtDlp(item, proxy, this.outputDir, this.emit.bind(this, 'progress'));
             this.completed.push(item);
-            console.log(`✅ Completed: ${item.title}`);
+            // console.log(`✅ Completed: ${item.title}`);
             this.emit('downloadCompleted', item);
         } catch (error) {
             console.log(`❌Uh Oh! Failed: ${item.title} - ${error.message}`);
