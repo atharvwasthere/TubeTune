@@ -1,4 +1,4 @@
-import { YTDLP_ARGS_BASE } from "./Config.js";
+import { getYtDlpArgs, getFileExtension } from "./Config.js";
 import isURL from 'validator/lib/isURL.js';
 import { spawn } from 'child_process';
 import path from 'path';
@@ -18,76 +18,138 @@ async function fetchTitle(url) {
     });
 }
 
-export function downloadWithYtDlp(item, proxy, outputDir, emitProgress) {
+export function downloadWithYtDlp(item, proxy, outputDir, emitProgress, markProxyAsFailed) {
     return new Promise(async (resolve, reject) => {
         if (!isURL(item.url)) throw new Error('Invalid URL');
 
         console.log('\n📡 Making request to YouTube...');
-        console.log('\n🔄 Fetching video metadata...');
+        console.log('🔄 Fetching video metadata...');
 
         if (item.title === 'Unknown') {
-            item.title = await fetchTitle(item.url);
+            try {
+                item.title = await fetchTitle(item.url);
+            } catch (error) {
+                console.log('⚠️ Could not fetch title, using URL as title');
+                item.title = item.url.split('/').pop() || 'Unknown';
+            }
         }
 
+        // Get format-specific arguments and file paths
+        const format = item.format || 'mp3';
+        const quality = item.quality || 'best';
+        const fileExtension = getFileExtension(format);
         const safeTitle = sanitize(item.title).replace(/\s+/g, '_');
-        const filePath = (path.join(outputDir, `${safeTitle}.mp3`));
+        
+        // Create format-specific subdirectory
+        const formatDir = path.join(outputDir, format);
+        if (!fs.existsSync(formatDir)) {
+            fs.mkdirSync(formatDir, { recursive: true });
+        }
+        
+        const filePath = path.join(formatDir, `${safeTitle}${fileExtension}`);
 
-        const args = [...YTDLP_ARGS_BASE];
-        args.push('--output', path.join(outputDir, '%(title)s.%(ext)s'));
+        // Check if file already exists
+        if (fs.existsSync(filePath)) {
+            console.log(`📁 File already exists: ${path.basename(filePath)} (${format.toUpperCase()})`);
+            resolve();
+            return;
+        }
+
+        // Get format and quality specific arguments
+        const args = getYtDlpArgs(format, quality);
+        args.push('--output', path.join(formatDir, '%(title)s.%(ext)s'));
         args.push(item.url);
 
         if (proxy) {
             args.push('--proxy', proxy);
-            console.log(`\n🌐 Using proxy: ${proxy}`);
+            console.log(`🌐 Using proxy: ${proxy}`);
         } else {
-            console.log('\n🌐 No proxy - using direct connection');
+            console.log('🌐 No proxy - using direct connection');
         }
 
-        console.log(`\n🎬 Title: ${item.title}`);
-        console.log('⬇️  Downloading audio stream...\n');
+        // Enhanced console output with format info
+        console.log(`🎬 Title: ${item.title}`);
+        console.log(`📺 Format: ${format.toUpperCase()} (${quality})`);
+        console.log(`📁 Output: ./${format}/${safeTitle}${fileExtension}`);
+        console.log(''); // Just a clean line break, no flashy messages
 
-        const progressBar = new cliProgress.SingleBar({
-            format: `📊 {title} | {bar} {percentage}% | Speed: {speed}`,
-            barCompleteChar: '█',
-            barIncompleteChar: '░',
-            barsize: 20,
-            hideCursor: true,
-        });
-
+        // NO individual progress bar - let the dashboard handle it
         const process = spawn('yt-dlp', args);
         let lastPercent = -1;
         let hasError = false;
         let extracted = false;
         let errorOutput = '';
-
-        progressBar.start(100, 0, {
-            title: item.title,
-            speed: '...'
-        });
+        let currentProxy = proxy;
+        let downloadPhase = format === 'mp4' ? 'downloading' : 'downloading';
 
         process.stdout.on('data', (data) => {
             const output = data.toString();
-            const progressMatch = output.match(/\[download\]\s+(\d+\.?\d*)%.*?at\s+(\S+).*?ETA\s+(\S+)/);
+            
+            // Match different progress patterns for MP4 vs MP3
+            let progressMatch;
+            
+            if (format === 'mp4') {
+                // For MP4, we might get video + audio download progress
+                progressMatch = output.match(/\[download\]\s+(\d+\.?\d*)%.*?at\s+(\S+).*?ETA\s+(\S+)/) ||
+                               output.match(/\[ffmpeg\].*?(\d+\.?\d*)%/);
+            } else {
+                // For MP3, standard download + extraction
+                progressMatch = output.match(/\[download\]\s+(\d+\.?\d*)%.*?at\s+(\S+).*?ETA\s+(\S+)/);
+            }
+            
+            // File size info
+            const sizeMatch = output.match(/\[download\]\s+(\d+\.?\d*)%\s+of\s+(\S+)/);
 
-            if (progressMatch && emitProgress) {
+            if (progressMatch) {
                 const percent = parseFloat(progressMatch[1]);
-                const speed = progressMatch[2];
-                const estimate = progressMatch[3];
+                const speed = progressMatch[2] || 'Unknown';
+                const estimate = progressMatch[3] || 'Calculating...';
 
                 if (percent !== lastPercent) {
-                    progressBar.update(percent, {
-                        title: item.title.slice(0, 30),
-                        speed: `${speed} | ETA :${estimate} `
-                    });
+                    // Update phase for different stages
+                    let phaseInfo = '';
+                    if (format === 'mp4') {
+                        if (output.includes('[ffmpeg]')) {
+                            phaseInfo = 'Processing';
+                        } else if (output.includes('video')) {
+                            phaseInfo = 'Video';
+                        } else if (output.includes('audio')) {
+                            phaseInfo = 'Audio';
+                        }
+                    } else {
+                        if (extracted) {
+                            phaseInfo = 'Converting';
+                        }
+                    }
 
-                    emitProgress({ itemId: item.id, percent, speed, estimate, title: item.title });
+                    // Only emit progress for dashboard - no console progress bar
+                    if (emitProgress) {
+                        emitProgress({
+                            itemId: item.id,
+                            percent: percent,
+                            speed: speed,
+                            estimate: estimate,
+                            title: item.title,
+                            format: format,
+                            quality: quality,
+                            size: sizeMatch ? sizeMatch[2] : 'Unknown',
+                            phase: phaseInfo || downloadPhase
+                        });
+                    }
+                    
                     lastPercent = percent;
                 }
             }
 
-            if (!extracted && (output.includes('[ExtractAudio]') || output.includes('has already been downloaded'))) {
+            // Check for extraction/processing phase
+            if (format === 'mp3' && !extracted && (output.includes('[ExtractAudio]') || output.includes('has already been downloaded'))) {
                 extracted = true;
-                // console.log(`\n🎵 Audio extraction completed for: ${item.title}`);
+                downloadPhase = 'converting';
+            }
+
+            // Check for MP4 processing
+            if (format === 'mp4' && output.includes('[ffmpeg]')) {
+                downloadPhase = 'processing';
             }
         });
 
@@ -95,51 +157,112 @@ export function downloadWithYtDlp(item, proxy, outputDir, emitProgress) {
             const error = data.toString();
             errorOutput += error;
 
-            if (error.includes('HTTP Error 429') || error.includes('Too Many Requests') ||
-                error.includes('HTTP Error 403') || error.includes('blocked')) {
-                console.log('🚫 Detected blocking/rate limiting - rotating proxy...');
-                if (proxy && this.proxyRotator) this.proxyRotator.markAsFailed(proxy);
+            // Same error handling as before
+            if (error.includes('HTTP Error 429') || error.includes('Too Many Requests')) {
+                console.log('\n🚫 Rate limited - rotating proxy...');
                 hasError = true;
+                if (currentProxy && markProxyAsFailed) {
+                    markProxyAsFailed(currentProxy);
+                }
+            } else if (error.includes('HTTP Error 403') || error.includes('Forbidden')) {
+                console.log('\n🚫 Access forbidden - rotating proxy...');
+                hasError = true;
+                if (currentProxy && markProxyAsFailed) {
+                    markProxyAsFailed(currentProxy);
+                }
+            } else if (error.includes('blocked')) {
+                console.log('\n🚫 IP blocked - rotating proxy...');
+                hasError = true;
+                if (currentProxy && markProxyAsFailed) {
+                    markProxyAsFailed(currentProxy);
+                }
+            } else if (error.includes('Private video') || error.includes('Video unavailable')) {
+                hasError = true;
+                errorOutput = 'Video is private or unavailable';
+            } else if (error.includes('Sign in to confirm your age')) {
+                hasError = true;
+                errorOutput = 'Age-restricted content - requires authentication';
+            }
+
+            // Log warnings for MP4 format issues
+            if (format === 'mp4' && error.includes('Requested format is not available')) {
+                console.log(`⚠️ ${quality} quality not available, falling back to best available`);
+            }
+
+            if (error.includes('[youtube] Warning:') || error.includes('WARNING:')) {
+                console.log(`⚠️ Warning: ${error.trim()}`);
             }
         });
 
         process.on('close', (code) => {
-            progressBar.stop();
-            console.log(); // for spacing
+            console.log(); // Clean spacing
 
             if (code === 0 && !hasError) {
                 try {
+                    // Verify file exists and get stats
                     const stats = fs.statSync(filePath);
+                    const fileSizeMB = (stats.size / 1024 / 1024).toFixed(1);
+                    
+                    // Simple, clean completion message
+                    const formatIcon = format === 'mp4' ? '🎥' : '🎵';
+                    console.log(`${formatIcon} ${chalk.green('✓')} ${item.title} ${chalk.dim(`(${fileSizeMB} MB)`)}`);
 
-                    const boxedPath = boxen(
-                        chalk.hex('#f5a9b8')(`💾 Saved to:\n${filePath}`),
-                        {
-                            padding: 0.5,
-                            margin: 1,
-                            borderStyle: 'round',
-                            borderColor: 'magenta',
-                            align: 'center',
-                        }
-                    );
-                    console.log(boxedPath);
+                    // Final progress update
+                    if (emitProgress) {
+                        emitProgress({
+                            itemId: item.id,
+                            percent: 100,
+                            speed: 'Complete',
+                            estimate: 'Done',
+                            title: item.title,
+                            format: format,
+                            quality: quality,
+                            fileSize: fileSizeMB + ' MB',
+                            filePath: filePath
+                        });
+                    }
 
-                    console.log(`📁 File Size: ~${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+                    resolve();
+                    
                 } catch (err) {
-                    console.log(`⚠️  Could not verify file size: ${err.message}`);
+                    console.log(`⚠️ Download completed but could not verify file: ${err.message}`);
+                    resolve();
+                }
+            } else {
+                // Simple error message - no flashy boxes
+                let errorMessage = `yt-dlp failed with code ${code}`;
+                
+                if (hasError) {
+                    if (errorOutput.includes('Private video')) {
+                        errorMessage = 'Video is private or unavailable';
+                    } else if (errorOutput.includes('HTTP Error 429')) {
+                        errorMessage = 'Rate limited - try again later or use different proxy';
+                    } else if (errorOutput.includes('HTTP Error 403')) {
+                        errorMessage = 'Access forbidden - proxy or region issue';
+                    } else if (errorOutput.includes('blocked')) {
+                        errorMessage = 'IP/Proxy blocked by YouTube';
+                    } else if (errorOutput.includes('Sign in to confirm')) {
+                        errorMessage = 'Age-restricted content requires authentication';
+                    } else if (format === 'mp4' && errorOutput.includes('No video formats')) {
+                        errorMessage = `No ${quality} MP4 format available for this video`;
+                    } else if (format === 'mp3' && errorOutput.includes('No suitable formats')) {
+                        errorMessage = 'No audio stream available for extraction';
+                    } else {
+                        errorMessage = errorOutput.trim() || `Unknown ${format.toUpperCase()} download error`;
+                    }
                 }
 
-                console.log(`\n✅ Done! Your MP3 is ready.\n`);
-                resolve();
-            } else {
-                reject(new Error(`yt-dlp failed with code ${code}: ${errorOutput.trim()}`));
+                console.log(`❌ ${item.title} - ${errorMessage}`);
+                reject(new Error(errorMessage));
             }
         });
 
         process.on('error', (error) => {
-            progressBar.stop();
+            console.log(`💥 Process error: ${error.message}`);
             reject(new Error(`Failed to start yt-dlp: ${error.message}`));
         });
 
+        // Store process reference for potential cancellation
         item.process = process;
     });
 }
