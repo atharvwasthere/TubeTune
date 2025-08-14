@@ -5,16 +5,7 @@ export default class ProxyRotator {
             // Add your proxies here later - format: 'http://ip:port' or 'socks5://ip:port'
             // 'http://proxy1.example.com:8080',
             // 'http://proxy2.example.com:8080',
-            'http://getvfzch:ecvfmkkgvt3z@23.95.150.145:6114',
-            'http://getvfzch:ecvfmkkgvt3z@198.23.239.134:6540',
-            'http://getvfzch:ecvfmkkgvt3z@45.38.107.97:6014',
-            'http://getvfzch:ecvfmkkgvt3z@207.244.217.165:6712',
-            'http://getvfzch:ecvfmkkgvt3z@107.172.163.27:6543',
-            'http://getvfzch:ecvfmkkgvt3z@104.222.161.211:6343',
-            'http://getvfzch:ecvfmkkgvt3z@64.137.96.74:6641',
-            'http://getvfzch:ecvfmkkgvt3z@216.10.27.159:6837',
-            'http://getvfzch:ecvfmkkgvt3z@136.0.207.84:6661',
-            'http://getvfzch:ecvfmkkgvt3z@142.147.128.93:6593'
+            // 'http://139.167.143.182:8080'
         ];
         this.currentIndex = 0;
         this.failedProxies = new Set();
