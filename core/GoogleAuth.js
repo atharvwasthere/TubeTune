@@ -3,6 +3,7 @@ import path from 'node:path';
 import https from 'node:https';
 import { spawn } from 'child_process';
 import { createServer } from 'http';
+import { createInterface } from 'readline';
 
 export class GoogleDriveAuth {
   constructor() {
@@ -197,7 +198,7 @@ export class GoogleDriveAuth {
       // Try to open browser
       this.openBrowser(authUrl);
 
-      const readline = require('readline').createInterface({
+      const readline = createInterface({
         input: process.stdin,
         output: process.stdout
       });
@@ -435,9 +436,9 @@ export class GoogleDriveAuth {
     }
   }
 
-  // Setup wizard for first-time users
+  // Setup wizard for first-time users - FIXED: Use ES module createInterface
   async setupCredentials() {
-    const readline = require('readline').createInterface({
+    const readline = createInterface({
       input: process.stdin,
       output: process.stdout
     });
